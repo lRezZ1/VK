@@ -17,7 +17,7 @@ public class Main extends Application {
         primaryStage.setTitle("Вконтактик");
         primaryStage.setScene(new Scene(root));
         primaryStage.show();
-        primaryStage.setOnCloseRequest(e -> Controller.close());
+        primaryStage.setOnCloseRequest(e -> new Controller().close());
     }
 
     public static void main(String[] args) {
