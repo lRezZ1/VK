@@ -1,0 +1,48 @@
+package VK;
+
+import com.google.gson.*;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.util.Date;
+
+class LastSeen {
+    public long time;
+    public int platform;
+}
+public class User {
+    private int id = -1;
+    private String first_name;
+    private String last_name;
+    private boolean is_closed; // аккаунт закрытый?
+    private boolean can_acces_closed; // Скрыта ли страница от текущего пользователя? (чей токен доступа используется)
+    private int online = -1;
+    private LastSeen last_seen;
+
+    public int getId(){return id;}
+    public String getFirstName(){return first_name;}
+    public String getLastName(){return last_name;}
+    public boolean getIsClosed(){return is_closed;}
+    public boolean getIsCanAccesClosed(){return can_acces_closed;}
+    public int getOnline(){return online;}
+
+    public double howTimeFromLastSeen(){
+        Date now = new Date();
+        return (double) now.getTime() / 1000 - this.last_seen.time;
+    }
+
+    static class RequestUserInfo{
+        private static String accessToken ="Use your vk token";
+        public static User getUserInfo(int id) throws IOException {
+            URL url = new URL("https://api.vk.com/method/users.get?user_id=" + id +"&fields=online,last_seen&access_token=" + accessToken +"&v=5.103");
+            BufferedReader br = new BufferedReader(new InputStreamReader(url.openConnection().getInputStream(), "UTF-8"));
+            String line = br.readLine();
+            br.close();
+            String response = line.substring(13, line.length() - 2);
+            Gson g = new Gson();
+            return g.fromJson(response, User.class);
+        }
+    }
+}
