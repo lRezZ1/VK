@@ -1,0 +1,172 @@
+package VK2;
+// xmlns = "http://javafx.com/javafx/11.0.1" из Main.fxml
+
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
+import javafx.event.ActionEvent;
+import javafx.fxml.FXML;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.web.WebEngine;
+import javafx.scene.web.WebView;
+import javafx.stage.Stage;
+
+import javax.swing.*;
+import java.io.IOException;
+
+
+public class Controller {
+    static Thread threadEnable;
+    static Thread threadDisable;
+    private int targetId = 0;
+    private static MyAccount myAccount = null;
+    @FXML
+    private CheckBox chbTogetherOnline, chbAlwaysOnline;
+    @FXML
+    private TextField txtTargetId;
+    @FXML
+    private Button btnStart, btnGetAccessToken;
+
+    //Закрыть все дочерние процессы по закрытию
+    public void close() {
+        if (threadEnable != null && threadEnable.isAlive())
+            threadEnable.interrupt();
+        Disable disable = new Disable();
+        threadDisable = new Thread(disable);
+        threadDisable.start();
+    }
+    //Реализация только одного флажка в момент времени;
+    public void onSelectTogetherOnline(ActionEvent event){
+        if(chbAlwaysOnline.isSelected())
+            chbAlwaysOnline.setSelected(false);
+    }
+    public void onSelectAlwaysOnline(ActionEvent event){
+        if (chbTogetherOnline.isSelected())
+            chbTogetherOnline.setSelected(false);
+    }
+
+    public void btnGetAccessToken (ActionEvent event){
+        if (myAccount == null || myAccount.getAccessToken() == null) {
+            final String REDIRECT_URL = "https://oauth.vk.com/blank.html";
+            final String VK_AUTH_URL = "https://oauth.vk.com/authorize?client_id=" + MyAccount.APP_ID + "&redirect_uri=https://oauth.vk.com/blank.html&response_type=token&scope=offline"; //TODO!!!
+            final WebView view = new WebView();
+            final WebEngine engine = view.getEngine();
+            engine.load(VK_AUTH_URL);
+            Stage primaryStage = new Stage();
+            primaryStage.setScene(new Scene(view));
+            primaryStage.show();
+
+            engine.locationProperty().addListener(new ChangeListener<String>(){
+                @Override
+                public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
+                    if(newValue.startsWith(REDIRECT_URL)){
+                        int index0 = newValue.indexOf("access_token=");
+                        int index1 = newValue.indexOf("&",index0);
+                        myAccount = new MyAccount(newValue.substring(index0 + 13, index1));
+                        //btnGetAccessToken.setStyle("-fx-background-color: cadetblue");
+                        btnGetAccessToken.setText("Доступ получен");
+                        btnGetAccessToken.setDisable(true);
+                        primaryStage.close();
+                    }
+                }
+
+            });
+        }
+
+    }
+
+    public void btnStart (ActionEvent event) {
+        if (threadEnable != null && threadEnable.isAlive()){
+            threadEnable.interrupt();
+            threadEnable = null;
+            Disable disable = new Disable();
+            threadDisable = new Thread(disable);
+            threadDisable.start();
+            btnStart.setText("Начать");
+            return;}
+        if (chbAlwaysOnline.isSelected() || chbTogetherOnline.isSelected()){
+            if (myAccount == null || myAccount.getAccessToken() == null) {
+                JOptionPane.showMessageDialog(null, "Сперва необходимо получить токен доступа. Для этого нажмите соответствующую кнопку.","Уведомление",JOptionPane.INFORMATION_MESSAGE);
+                btnGetAccessToken.requestFocus();
+            }
+            else if (chbTogetherOnline.isSelected() && threadEnable == null){
+                int targetId = 0;
+                try {
+                    targetId = Integer.parseInt(txtTargetId.getText());
+                } catch (NumberFormatException e1) {
+                    JOptionPane.showMessageDialog(null, "Необходимо ввести корректный id.","Ошибка",JOptionPane.ERROR_MESSAGE);
+                    txtTargetId.setText("");
+                    txtTargetId.requestFocus();
+                    return;
+                }
+                if (targetId < 1){
+                    JOptionPane.showMessageDialog(null, "Необходимо ввести корректный id.","Ошибка",JOptionPane.ERROR_MESSAGE);
+                    txtTargetId.setText("");
+                    txtTargetId.requestFocus();
+                    return;
+                }
+                Enable enable = new Enable(targetId);
+                threadEnable = new Thread(enable);
+                threadEnable.start();
+                btnStart.setText("Остановить");
+                return;
+            }
+            else if (threadEnable == null){
+                Enable enable = new Enable();
+                threadEnable = new Thread(enable);
+                threadEnable.start();
+                btnStart.setText("Остановить");
+                return;
+            }
+        }
+        else{
+            JOptionPane.showMessageDialog(null,"Необходимо выбрать задачу","Уведомление",JOptionPane.INFORMATION_MESSAGE);
+            chbTogetherOnline.requestFocus();
+        }
+
+    }
+
+    class Enable implements Runnable {
+        private int targetId;
+        Enable(){}
+        Enable(int targetId){this.targetId = targetId;}
+
+        @Override
+        public void run() {
+            if (chbTogetherOnline.isSelected()) {
+                try {
+                    Main.TogetherOnline.enable(myAccount, targetId);
+                } catch (InterruptedException e1) {
+                    e1.printStackTrace();
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
+            }
+            else if (chbAlwaysOnline.isSelected()) {
+                try {
+                    if (chbAlwaysOnline.isSelected())
+                        Main.AlwaysOnline.enable(myAccount);
+                    else
+                        Main.AlwaysOnline.disable(myAccount);
+                } catch (Exception e1) {
+                }
+            }
+        }
+    }
+
+    class Disable implements Runnable {
+        @Override
+        public void run() {
+            if (myAccount != null){
+                try {
+                    Main.TogetherOnline.disable(myAccount);
+                    Main.AlwaysOnline.disable(myAccount);
+                    threadDisable.interrupt();
+                    threadDisable = null;
+                } catch (IOException e) {
+                    e.printStackTrace();
+            }
+            }
+        }
+    }
+}
